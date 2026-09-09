@@ -10,7 +10,7 @@ const (
 )
 
 type Column struct {
-	Name stringb
+	Name string
 	Type ColumnType
 }
 
