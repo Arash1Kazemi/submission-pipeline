@@ -1,12 +1,15 @@
-// Package parse reads CSV/XLSX submissions, sniffs their schema, and reports per-row errors
-package parser
+// Package Parser reads CSV/XLSX submissions, sniffs their schema, and reports per-row errors
+package tabular
+
+
+)
 
 type ColumnType string
 
 const (
 	ColumnTypeString ColumnType = "string"
 	ColumnTypeNumber ColumnType = "number"
-	ColumnTypeDate ColumnType = "date"
+	ColumnTypeDate   ColumnType = "date"
 )
 
 type Column struct {
@@ -15,24 +18,24 @@ type Column struct {
 }
 
 type RowError struct {
-	Row int
-	Column string
+	Row     int
+	Column  string
 	Message string
 }
 
 type Result struct {
-	Columns []Column
+	Columns  []Column
 	RowCount int
-	Errors []RowError
+	Errors   []RowError
 }
 
 // Sniffs schema form the headr + a sample of rows
-func parseCSV(path string) (Result, error) {
+func ParseCSV(path string) (Result, error) {
 	panic("TODO")
 }
 
 // Reads the first sheet of the XLSX file, sniffs schema form the headr + a sample of rows
-func parseXLSX(path string) (Result, error) {
+func ParseXLSX(path string) (Result, error) {
 	panic("TODO")
 }
 
