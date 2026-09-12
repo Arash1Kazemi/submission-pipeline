@@ -1,9 +1,6 @@
 // Package Parser reads CSV/XLSX submissions, sniffs their schema, and reports per-row errors
 package tabular
 
-
-)
-
 type ColumnType string
 
 const (

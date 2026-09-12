@@ -17,8 +17,6 @@ func normalizeDigits(s string) string {
 	panic("TODO")
 }
 
-
-func normalizeZWNJ(s string) string  {
+func normalizeZWNJ(s string) string {
 	panic("TODO")
 }
-

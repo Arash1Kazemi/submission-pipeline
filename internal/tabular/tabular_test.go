@@ -1,3 +1,1 @@
-package tabular 
-
-import "testing"
+package tabular
