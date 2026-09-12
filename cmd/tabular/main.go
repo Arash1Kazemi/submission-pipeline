@@ -1,4 +1,4 @@
-package parse
+package main
 
 func main() {
 	// TODO:
