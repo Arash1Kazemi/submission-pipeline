@@ -1,0 +1,3 @@
+# Go tooling writes LF. Pin it so gofmt on Windows does not produce
+# whole-file diffs for everyone else.
+* text=auto eol=lf

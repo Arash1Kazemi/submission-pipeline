@@ -1,60 +1,96 @@
+// Package queue defines the Postgres-backed job contract shared with the
+// Spring side, and runs the worker loop that consumes it.
+//
+// The jobs table itself is owned by core's Flyway migrations. This package
+// only issues DML against it.
 package queue
 
-import "time"
-
-type JobType string
-
-// Status is the outcome of a job.
-// The sp;it between Rejexted and Failed is what drives retry behaviour:
-// rejexted is terminal, failed is retryable
-type Status string
-
-// Package queue defines the Redis job contract shared with the Spring
-// side, and runs the worker loop that consumes it
-const (
-	// StatusOK - the job did its work successfully
-	StatusOK Status = "ok"
-
-	// StatusRejected = the pipeline worked correctly and the answer is no:
-	// the suvmitted content is unacceptable
-	// Never retried, the contraivutor should be shown why
-	StatusRejected Status = "rejected"
-
-	// StatusFailed - the worker itself malfunctioned (storage unreachable, disk full, timeout)
-	// Retryable; the contributor sees noting.
-	StatusFailed Status = "failed"
-
-	// TODO: one constant per job type the contract defines —
-	// likely JobTypeNormalize, JobTypeParse, JobTypeImage, JobTypeGeo
-	JobTypeRandom JobType = ""
+import (
+	"encoding/json"
+	"time"
 )
 
-// Job is one queue payload, matching the agreed contract exactly
+// JobType selects which handler processes a job.
+type JobType string
+
+const (
+	JobTypeImage   JobType = "image"
+	JobTypeTabular JobType = "tabular"
+	JobTypeGeo     JobType = "geo"
+)
+
+// Status is the lifecycle state of a job row, and is distinct from the
+// Outcome of the work itself. A submission that is rejected produces a done
+// row carrying an OutcomeRejected result — the pipeline ran correctly and the
+// answer was no. Only the worker malfunctioning produces StatusFailed.
+type Status string
+
+const (
+	StatusPending Status = "pending"
+	StatusRunning Status = "running"
+	StatusDone    Status = "done"
+	StatusFailed  Status = "failed"
+)
+
+// Outcome is the result of the work. The split between OutcomeRejected and
+// OutcomeFailed is what drives retry behaviour: rejected is terminal, failed
+// is retryable.
+type Outcome string
+
+const (
+	// OutcomeOK — the job did its work successfully.
+	OutcomeOK Outcome = "ok"
+
+	// OutcomeRejected — the pipeline worked correctly and the answer is no:
+	// the submitted content is unacceptable. Never retried; the contributor
+	// should be shown why.
+	OutcomeRejected Outcome = "rejected"
+
+	// OutcomeFailed — the worker itself malfunctioned (storage unreachable,
+	// disk full, timeout). Retryable; the contributor sees nothing.
+	OutcomeFailed Outcome = "failed"
+)
+
+// Job is one row of the jobs table, as claimed by this worker.
 type Job struct {
-	ID           string
-	Type         JobType
-	SubmissionID string
-	ObjectKey    string
-	// TODO: remaining fields from waht amir set later
+	ID          int64
+	Type        JobType
+	Payload     json.RawMessage
+	Attempts    int
+	MaxAttempts int
+	RunAfter    time.Time
+	CreatedAt   time.Time
 }
 
-// Result is what the worker reports back for one job.
-//
-//	At most one of the typed payloads is set, matching Type.
-type Result struct {
-	Version      int       `json:"version"`
-	JobID        string    `json:"job_id"`
-	SubmissionID string    `json:"submission_id"`
-	Type         JobType   `json:"type"`
-	Status       Status    `json:"status"`
-	Attempt      int       `json:"attempt"`
-	DurationMS   int64     `json:"duration_ms"`
-	FinishedAt   time.Time `json:"finished_at"`
+// LogAttrs returns this job's correlation fields for slog.Logger.With, so
+// every line written about the job carries them. Handlers add submission_id
+// once they have parsed their own payload — the queue deliberately does not
+// parse it twice just to log one field.
+func (j Job) LogAttrs() []any {
+	return []any{
+		"job_id", j.ID,
+		"type", string(j.Type),
+		"attempt", j.Attempts,
+	}
+}
 
-	// Reason is set when Status is StatusRejected.
+// Result is what the worker records for one job. At most one of the typed
+// payloads is set, matching Type. It is stored as JSONB on the job row, which
+// is where core reads it from.
+type Result struct {
+	Version    int       `json:"version"`
+	JobID      int64     `json:"job_id"`
+	Type       JobType   `json:"type"`
+	Outcome    Outcome   `json:"outcome"`
+	Attempt    int       `json:"attempt"`
+	DurationMS int64     `json:"duration_ms"`
+	FinishedAt time.Time `json:"finished_at"`
+
+	// Reason is set when Outcome is OutcomeRejected.
 	Reason *Reason `json:"reason,omitempty"`
-	// Error is set when Status is StatusFailed. Operator-facing only —
-	// it may contain internal detail and must not be shown to contributors.
+
+	// Error is set when Outcome is OutcomeFailed. Operator-facing only — it may
+	// contain internal detail and must not be shown to contributors.
 	Error string `json:"error,omitempty"`
 
 	Tabular *TabularResult `json:"tabular,omitempty"`
@@ -77,7 +113,7 @@ type TabularResult struct {
 	RowErrors []RowError `json:"row_errors"`
 
 	// ErrorsTruncated is how many row errors were dropped from RowErrors to
-	// keep the message small.
+	// keep the stored result small.
 	ErrorsTruncated int `json:"errors_truncated"`
 
 	NormalizedKey string `json:"normalized_key,omitempty"`
@@ -114,14 +150,4 @@ type GeoResult struct {
 	FeatureCount int    `json:"feature_count"`
 	SourceCRS    string `json:"source_crs"`
 	OutputKey    string `json:"output_key"`
-}
-
-// LogAttes returns this job's correlation fields for slog.Logger.With, so
-// every line written about the job carries them.
-func (j Job) LogAttrs() []any {
-	return []any{
-		"job_id", j.ID,
-		"submission_id", j.SubmissionID,
-		"type", string(j.Type),
-	}
 }

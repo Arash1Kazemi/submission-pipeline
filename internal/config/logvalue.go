@@ -7,18 +7,20 @@ import "log/slog"
 func (c Config) LogValue() slog.Value {
 	return slog.GroupValue(
 		slog.String("log_level", c.LogLevel.String()),
-		slog.Any("redis", c.Redis),
+		slog.Any("database", c.Database),
 		slog.Any("storage", c.Storage),
 		slog.Any("worker", c.Worker),
 	)
 }
 
-func (r Redis) LogValue() slog.Value {
+func (d Database) LogValue() slog.Value {
 	return slog.GroupValue(
-		slog.String("addr", r.Addr),
-		slog.String("password", redacted(r.Password)),
-		slog.String("stream", r.Stream),
-		slog.String("group", r.Group),
+		slog.String("host", d.Host),
+		slog.Int("port", d.Port),
+		slog.String("name", d.Name),
+		slog.String("user", d.User),
+		slog.String("password", redacted(d.Password)),
+		slog.Int("max_conns", d.MaxConns),
 	)
 }
 
@@ -38,6 +40,11 @@ func (w Worker) LogValue() slog.Value {
 		slog.Int("concurrency", w.Concurrency),
 		slog.Int64("max_file_bytes", w.MaxFileBytes),
 		slog.Duration("job_timeout", w.JobTimeout),
+		slog.Duration("poll_interval", w.PollInterval),
+		slog.Duration("heartbeat_interval", w.HeartbeatInterval),
+		slog.Duration("lock_duration", w.LockDuration),
+		slog.Int("max_attempts", w.MaxAttempts),
+		slog.Duration("retry_base_delay", w.RetryBaseDelay),
 	)
 }
 

@@ -7,10 +7,9 @@ import (
 	"time"
 )
 
-// Health tracks whether th consumer loop is still alive.
-// The loop calls MarkPoll after eatch queue poll;
-// the endpoint reports unhealthy when that heartbeat gose stale.
-
+// Health tracks whether the consumer loop is still alive. The loop calls
+// MarkPoll after each queue poll; the endpoint reports unhealthy when that
+// heartbeat goes stale.
 type Health struct {
 	mu       sync.RWMutex
 	lastPoll time.Time
