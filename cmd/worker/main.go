@@ -16,6 +16,7 @@ import (
 	"wikipg/internal/config"
 	"wikipg/internal/handler"
 	"wikipg/internal/queue"
+	"wikipg/internal/storage"
 )
 
 func main() {
@@ -50,6 +51,18 @@ func run() error {
 	}
 	defer pool.Close()
 
+	store, err := storage.New(
+		ctx,
+		cfg.Storage.Endpoint,
+		cfg.Storage.AccessKey,
+		cfg.Storage.SecretKey,
+		cfg.Storage.UseSSL,
+		cfg.Worker.MaxFileBytes,
+	)
+	if err != nil {
+		return err
+	}
+
 	health := &Health{}
 	health.MarkPoll() // don't report stale before the first poll
 	// hardcoded fix: from HEALTH_ADDR / HEALTH_MAX_AGE
@@ -72,8 +85,11 @@ func run() error {
 		health.MarkPoll,
 	)
 
-	runner.Register(queue.JobTypeImage, &handler.Image{})
-	// TODO: register tabular and geo handlers once those packages are built.
+	runner.Register(queue.JobTypeImage, &handler.Image{
+		Store:         store,
+		RawBucket:     cfg.Storage.RawBucket,
+		DerivedBucket: cfg.Storage.DerivedBucket,
+	})
 
 	log.Info("worker ready", "config", cfg, "identity", identity())
 
